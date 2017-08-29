@@ -42,11 +42,10 @@ public class XmlRunListener extends InstrumentationRunListener {
     private static final String ATTRIBUTE_TYPE = "type";
     private static final String ATTRIBUTE_VALUE = "value";
 
-    private FileOutputStream outputStream;
-
     private final XmlSerializer xmlSerializer;
 
     private TestRunResult runResult;
+    private File outputFile;
 
 
     public XmlRunListener() {
@@ -63,15 +62,18 @@ public class XmlRunListener extends InstrumentationRunListener {
 
         final String fileName = "report.xml";
 
-        try {
-            // Seems like we need to put this into the target application's context as for the instrumentation app's
-            // context we can never be sure if we have the correct permissions - and getFilesDir() seems to return null
-            File outputFile = new File(instr.getTargetContext().getExternalFilesDir(null), fileName);
+        // Seems like we need to put this into the target application's context as for the instrumentation app's
+        // context we can never be sure if we have the correct permissions - and getFilesDir() seems to return null
+        outputFile = new File(instr.getTargetContext().getExternalFilesDir(null), fileName);
+        Log.d(TAG, "setInstrumentation: outputFile: " + outputFile);
+    }
 
-            Log.d(TAG, "setInstrumentation: outputFile: " + outputFile);
+    private void openReportFile(File outputFile) {
+        FileOutputStream outputStream;
+        try {
             outputStream = new FileOutputStream(outputFile);
         } catch (FileNotFoundException e) {
-            Log.e(TAG, "Unable to open report file: " + fileName, e);
+            Log.e(TAG, "Unable to open report file: " + outputFile, e);
             throw new RuntimeException("Unable to open report file: " + e.getMessage(), e);
         }
 
@@ -95,7 +97,7 @@ public class XmlRunListener extends InstrumentationRunListener {
     public void testRunFinished(Result result) throws Exception {
         runResult.runFinished(result);
 
-        printTestResults();
+        saveTestResults();
     }
 
     @Override
@@ -106,11 +108,15 @@ public class XmlRunListener extends InstrumentationRunListener {
     @Override
     public void testFinished(Description description) throws Exception {
         runResult.testFinished(description);
+
+        saveTestResults();
     }
 
     @Override
     public void testFailure(Failure failure) throws Exception {
         runResult.testFailure(failure);
+
+        saveTestResults();
     }
 
     @Override
@@ -123,7 +129,8 @@ public class XmlRunListener extends InstrumentationRunListener {
         runResult.testIgnored(description);
     }
 
-    private void printTestResults() throws IOException {
+    private void saveTestResults() throws IOException {
+        openReportFile(outputFile);
 
         xmlSerializer.startTag(NAMESPACE, TAG_SUITE);
         String name = runResult.getTestSuiteName();
@@ -187,6 +194,7 @@ public class XmlRunListener extends InstrumentationRunListener {
         xmlSerializer.endDocument();
         xmlSerializer.flush();
     }
+
 
     private void printProperty(String name, String value) throws IOException {
         xmlSerializer.startTag(NAMESPACE, TAG_PROPERTY);
